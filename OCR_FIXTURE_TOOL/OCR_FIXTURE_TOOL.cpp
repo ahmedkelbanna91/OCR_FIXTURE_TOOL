@@ -4,14 +4,23 @@
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/bounding_box.h>
 #include <CGAL/centroid.h>
-#include <fstream>
 #include <algorithm> 
 #include <vector>
 #include <iostream>
 #include <string>
 #include <cmath>
 #include <filesystem>
+#include "include\rang.hpp"
 
+//<< Red << << ColorEnd <<
+auto ColorEnd = [](std::ostream& os) -> std::ostream& { return os << rang::fg::reset; };
+auto Red = [](std::ostream& os) -> std::ostream& { return os << rang::fg::red; };
+auto Green = [](std::ostream& os) -> std::ostream& { return os << rang::fg::green; };
+auto Yellow = [](std::ostream& os) -> std::ostream& { return os << rang::fg::yellow; };
+auto Blue = [](std::ostream& os) -> std::ostream& { return os << rang::fg::blue; };
+auto Magenta = [](std::ostream& os) -> std::ostream& { return os << rang::fg::magenta; };
+auto Cyan = [](std::ostream& os) -> std::ostream& { return os << rang::fg::cyan; };
+auto Gray = [](std::ostream& os) -> std::ostream& { return os << rang::fg::gray; };
 
 
 namespace PMP = CGAL::Polygon_mesh_processing;
@@ -22,15 +31,15 @@ typedef CGAL::Surface_mesh<Kernel::Point_3> Mesh;
 typedef Kernel::Point_3 Point;
 typedef Kernel::Vector_3 Vector;
 
-void get_model_dimensions(Mesh mesh, float& modelWidth, float& modelLength, float& modelHeight) {
+void get_model_dimensions(Mesh mesh, double& modelWidth, double& modelLength, double& modelHeight) {
 	std::vector<Point> points;
 	for (auto v : mesh.vertices()) {
 		points.push_back(mesh.point(v));
 	}
 	Kernel::Iso_cuboid_3 bbox = CGAL::bounding_box(points.begin(), points.end());
-	modelWidth = static_cast<float>(bbox.xmax() - bbox.xmin());
-	modelLength = static_cast<float>(bbox.ymax() - bbox.ymin());
-	modelHeight = static_cast<float>(bbox.zmax() - bbox.zmin());
+	modelWidth = static_cast<double>(bbox.xmax() - bbox.xmin());
+	modelLength = static_cast<double>(bbox.ymax() - bbox.ymin());
+	modelHeight = static_cast<double>(bbox.zmax() - bbox.zmin());
 }
 
 void compute_centroid(Mesh mesh, Point& centroid) {
@@ -41,10 +50,10 @@ void compute_centroid(Mesh mesh, Point& centroid) {
 	centroid = CGAL::centroid(vertices.begin(), vertices.end());
 }
 
-void scaleMesh(Mesh& mesh, float XYscale, float Zscale, float zThreshold, float XYtopscale) {
+void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, double XYtopscale) {
 	for (auto v : mesh.vertices()) {
 		Point& p = mesh.point(v);
-		float new_x, new_y, new_z;
+		double new_x, new_y, new_z;
 
 		if (p.z() > zThreshold) {
 			new_x = p.x() * XYtopscale;
@@ -70,7 +79,7 @@ bool read_STL(const std::string& filename, Mesh& mesh) {
 	fs::path filepath(filename);
 	mesh.clear();
 	if (!PMP::IO::read_polygon_mesh(filename, mesh)) {
-		std::cerr << "Error: Cannot read the STL file " << filepath.filename() << std::endl;
+		std::cerr << Red << "Error: Cannot read the STL file " << ColorEnd << filepath.filename() << std::endl;
 		return false;
 	}
 	return true;
@@ -79,7 +88,7 @@ bool read_STL(const std::string& filename, Mesh& mesh) {
 bool write_STL(const std::string& filename, const Mesh& mesh) {
 	fs::path filepath(filename);
 	if (!CGAL::IO::write_polygon_mesh(filename, mesh, CGAL::parameters::stream_precision(10))) {
-		std::cerr << "Error: Cannot write the STL file: " << filepath.filename() << std::endl;
+		std::cerr << Red << "Error: Cannot write the STL file: " << ColorEnd << filepath.filename() << std::endl;
 		return false;
 	}
 	return true;
@@ -87,11 +96,11 @@ bool write_STL(const std::string& filename, const Mesh& mesh) {
 
 int main(int argc, char* argv[]) {
 	bool lastWasDigit = false;
-	float offsetX = 0.0f, offsetY = 0.0f, offsetZ = 0.0f;
-	float XYscale = 0.18f, XYtopscale = 0.18f, Zscale = 0.30f;
-	float zThreshold = 0.1f;
-	float Xspacing = 0.8f, Yspacing = 2.9f;
-	float Xtranslate = -6.5f, Ytranslate = -7.5f, zDepth= 4.0f; //2.6f
+	double offsetX = 0.0f, offsetY = 0.0f, offsetZ = 0.0f;
+	double XYscale = 0.18f, XYtopscale = 0.18f, Zscale = 0.30f;
+	double zThreshold = 0.1f;
+	double Xspacing = 0.8f, Yspacing = 2.9f;
+	double Xtranslate = -6.5f, Ytranslate = -7.5f, zDepth= 4.0f; //2.6f
 
 	std::map<std::string, std::string> args;
 	for (int i = 1; i < argc; ++i) {
@@ -100,13 +109,13 @@ int main(int argc, char* argv[]) {
 			i++;
 		}
 		else {
-			std::cerr << "Missing value for " << argv[i] << std::endl;
+			std::cerr << Red << "      Missing value for " << ColorEnd << argv[i] << std::endl;
 			return EXIT_FAILURE;
 		}
 	}
 
 	if (args.find("-O") == args.end() || args.find("-N") == args.end() || args.find("-D") == args.end()) {
-		std::cerr << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl]    (V3.0 CreatedByBanna)" << std::endl;
+		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl]    (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -118,10 +127,10 @@ int main(int argc, char* argv[]) {
 	Mesh Letter_Mesh, Tag_Mesh, Fixture_Mesh, Model_Mesh, Result_Mesh;
 
 	for (char c : ID) {
-		float FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
+		double FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
 		std::string filename = "models/font/" + std::string(1, c) + ".stl";
 
-		if (!read_STL(filename, Letter_Mesh))  return EXIT_FAILURE;
+		if (!read_STL(filename, Letter_Mesh)) return EXIT_FAILURE;
 
 		get_model_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
 
@@ -144,7 +153,7 @@ int main(int argc, char* argv[]) {
 	if (!read_STL("models/fixture.stl", Fixture_Mesh)) return EXIT_FAILURE;
 
 	if (!PMP::corefine_and_compute_difference(Fixture_Mesh, Tag_Mesh, Result_Mesh)) {
-		std::cerr << "Error: Subtraction operation failed." << std::endl;
+		std::cerr << Red << "      Subtraction operation failed." << ColorEnd << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -157,18 +166,19 @@ int main(int argc, char* argv[]) {
 		compute_centroid(Model_Mesh, centroid);
 		translate_mesh(Model_Mesh, Kernel::Vector_3(-centroid.x(), -centroid.y() + 7, 0));
 
-		//CGAL::copy_face_graph(Model_Mesh, Result_Mesh);
 		Mesh Sub_Mesh = Result_Mesh;
 		Result_Mesh.clear();
 
 		if (!PMP::corefine_and_compute_union(Model_Mesh, Sub_Mesh, Result_Mesh)) {
-		    std::cerr << "Error: Addition operation failed." << std::endl;
-		    return EXIT_FAILURE;
+		    std::cerr << Red << "      Model Addition failed." << ColorEnd << std::endl;
+			Result_Mesh.clear();
+			CGAL::copy_face_graph(Sub_Mesh, Result_Mesh);
+			CGAL::copy_face_graph(Model_Mesh, Result_Mesh);
 		}
 	}
 
 	if (!write_STL(Output_Path, Result_Mesh)) return EXIT_FAILURE;
 
-	std::cout << "      Operation completed successfully." << std::endl;
+	std::cout << Green << "      Operation completed successfully." << ColorEnd << std::endl;
 	return EXIT_SUCCESS;
 }
