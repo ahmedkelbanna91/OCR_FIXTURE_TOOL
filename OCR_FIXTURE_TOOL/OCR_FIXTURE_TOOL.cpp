@@ -3,7 +3,7 @@
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/bounding_box.h>
-#include <CGAL/centroid.h>
+#include <CGAL/Polygon_mesh_processing/repair.h>
 #include <algorithm> 
 #include <vector>
 #include <iostream>
@@ -25,13 +25,33 @@ auto Gray = [](std::ostream& os) -> std::ostream& { return os << rang::fg::gray;
 
 namespace PMP = CGAL::Polygon_mesh_processing;
 namespace fs = std::filesystem;
+bool DEBUG = false;
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
 typedef CGAL::Surface_mesh<Kernel::Point_3> Mesh;
 typedef Kernel::Point_3 Point;
 typedef Kernel::Vector_3 Vector;
 
-void get_model_dimensions(Mesh mesh, double& modelWidth, double& modelLength, double& modelHeight) {
+bool is_valid_mesh(Mesh mesh) {
+	std::stringstream buffer;
+	std::streambuf* prevcerr = std::cerr.rdbuf(buffer.rdbuf());
+	bool isValid = CGAL::is_valid_polygon_mesh(mesh, DEBUG);
+	std::cerr.rdbuf(prevcerr);
+	std::string line;
+	while (std::getline(buffer, line)) {
+		if (DEBUG) std::cout << Yellow << "      Validation output: " << ColorEnd << line << ColorEnd << std::endl;
+	}
+	return isValid;
+}
+
+bool repair_and_validate_mesh(Mesh& mesh) {
+	if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " << ColorEnd << PMP::remove_isolated_vertices(mesh) << std::endl;
+	if (DEBUG) std::cout << Yellow << "      Number of new vertices: " << ColorEnd << PMP::duplicate_non_manifold_vertices(mesh) << std::endl;
+	if (DEBUG) std::cout << Yellow << "      Number of stitches: " << ColorEnd << PMP::stitch_borders(mesh) << std::endl;
+	return is_valid_mesh(mesh);
+}
+
+void get_dimensions(Mesh mesh, double& modelWidth, double& modelLength, double& modelHeight) {
 	std::vector<Point> points;
 	for (auto v : mesh.vertices()) {
 		points.push_back(mesh.point(v));
@@ -40,14 +60,37 @@ void get_model_dimensions(Mesh mesh, double& modelWidth, double& modelLength, do
 	modelWidth = static_cast<double>(bbox.xmax() - bbox.xmin());
 	modelLength = static_cast<double>(bbox.ymax() - bbox.ymin());
 	modelHeight = static_cast<double>(bbox.zmax() - bbox.zmin());
+	if (DEBUG) std::cout << Yellow << "      Dimensions:" << ColorEnd
+		<< "  (W"
+		<< modelWidth << "  L" 
+		<< modelLength << "  H" 
+		<< modelHeight << ")" << std::endl;
 }
 
-void compute_centroid(Mesh mesh, Point& centroid) {
+void get_center(Mesh mesh, Point& center) {
+	CGAL::Bbox_3 bbox;
+	for (auto v : mesh.vertices()) {
+		bbox += mesh.point(v).bbox();
+	}
+	center = Point((bbox.xmin() + bbox.xmax()) / 2.0, (bbox.ymin() + bbox.ymax()) / 2.0, (bbox.zmin() + bbox.zmax()) / 2.0);
+	if (DEBUG) std::cout << Yellow << "      Center:" << ColorEnd
+		<< "  ("
+		<< center.x() << ", "
+		<< center.y() << ", "
+		<< center.z() << ")" << std::endl;
+}
+
+void get_centroid(Mesh mesh, Point& centroid) {
 	std::vector<Point> vertices;
 	for (auto v : mesh.vertices()) {
 		vertices.push_back(mesh.point(v));
 	}
 	centroid = CGAL::centroid(vertices.begin(), vertices.end());
+	if (DEBUG) std::cout << Yellow << "      Centroid:" << ColorEnd
+		<< "  ("
+		<< centroid.x() << ", "
+		<< centroid.y() << ", "
+		<< centroid.z() << ")" << std::endl;
 }
 
 void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, double XYtopscale) {
@@ -70,6 +113,7 @@ void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, dou
 }
 
 void translate_mesh(Mesh& mesh, const Vector& translation_vector) {
+	if (DEBUG) std::cout << Yellow << "      Applying translation:  " << ColorEnd << translation_vector << std::endl;
 	for (auto v : mesh.vertices()) {
 		mesh.point(v) = mesh.point(v) + translation_vector;
 	}
@@ -78,8 +122,9 @@ void translate_mesh(Mesh& mesh, const Vector& translation_vector) {
 bool read_STL(const std::string& filename, Mesh& mesh) {
 	fs::path filepath(filename);
 	mesh.clear();
+	if (DEBUG) std::cout << Yellow << "      Reading STL file:  " << ColorEnd << filepath.filename() << std::endl;
 	if (!PMP::IO::read_polygon_mesh(filename, mesh)) {
-		std::cerr << Red << "Error: Cannot read the STL file " << ColorEnd << filepath.filename() << std::endl;
+		std::cerr << Red << "Error: Cannot read the STL file:  " << ColorEnd << filepath.filename() << std::endl;
 		return false;
 	}
 	return true;
@@ -87,8 +132,9 @@ bool read_STL(const std::string& filename, Mesh& mesh) {
 
 bool write_STL(const std::string& filename, const Mesh& mesh) {
 	fs::path filepath(filename);
+	if (DEBUG) std::cout << Yellow << "      Writting STL file:  " << ColorEnd << filepath.filename() << std::endl;
 	if (!CGAL::IO::write_polygon_mesh(filename, mesh, CGAL::parameters::stream_precision(10))) {
-		std::cerr << Red << "Error: Cannot write the STL file: " << ColorEnd << filepath.filename() << std::endl;
+		std::cerr << Red << "Error: Cannot write the STL file:  " << ColorEnd << filepath.filename() << std::endl;
 		return false;
 	}
 	return true;
@@ -104,6 +150,10 @@ int main(int argc, char* argv[]) {
 
 	std::map<std::string, std::string> args;
 	for (int i = 1; i < argc; ++i) {
+		if (std::string(argv[i]) == "-DB") {
+			DEBUG = true;
+			continue;
+		}
 		if (i + 1 < argc) {
 			args[argv[i]] = argv[i + 1];
 			i++;
@@ -115,7 +165,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (args.find("-O") == args.end() || args.find("-N") == args.end() || args.find("-D") == args.end()) {
-		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl]    (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
+		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl] [-DB Debug]   (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -128,11 +178,13 @@ int main(int argc, char* argv[]) {
 
 	for (char c : ID) {
 		double FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
-		std::string filename = "models/font/" + std::string(1, c) + ".stl";
+		std::string Letter_File = "models/font/" + std::string(1, c) + ".stl";
 
-		if (!read_STL(filename, Letter_Mesh)) return EXIT_FAILURE;
+		if (!read_STL(Letter_File, Letter_Mesh)) return EXIT_FAILURE;
 
-		get_model_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
+		get_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
+		Point centroid;
+		get_centroid(Letter_Mesh, centroid);
 
 		if (std::isdigit(c)) {
 			lastWasDigit = true;
@@ -160,10 +212,15 @@ int main(int argc, char* argv[]) {
 
 	if (!Model_Path.empty()) {
 		if (!read_STL(Model_Path, Model_Mesh)) return EXIT_FAILURE;
-		
-		Point centroid;
-		PMP::orient(Model_Mesh);
-		compute_centroid(Model_Mesh, centroid);
+		if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " << ColorEnd << PMP::remove_isolated_vertices(Model_Mesh) << std::endl;
+
+		double Width, Length, Height;
+		get_dimensions(Model_Mesh, Width, Length, Height);
+
+		Point centroid, center;
+		//PMP::orient(Model_Mesh);
+		get_centroid(Model_Mesh, centroid);
+		get_center(Model_Mesh, center);
 		translate_mesh(Model_Mesh, Kernel::Vector_3(-centroid.x(), -centroid.y() + 7, 0));
 
 		Mesh Sub_Mesh = Result_Mesh;
@@ -174,6 +231,17 @@ int main(int argc, char* argv[]) {
 			Result_Mesh.clear();
 			CGAL::copy_face_graph(Sub_Mesh, Result_Mesh);
 			CGAL::copy_face_graph(Model_Mesh, Result_Mesh);
+		}
+	}
+
+	if (!is_valid_mesh(Result_Mesh)) {
+		std::cerr << Red << "      Mesh is not valid." << ColorEnd << std::endl;
+		if (repair_and_validate_mesh(Result_Mesh)) {
+			if (DEBUG) std::cout << Red << "      Mesh repaired." << ColorEnd << std::endl;
+		}
+		else {
+			std::cerr << Red << "      Failed to repair or validate the mesh." << ColorEnd << std::endl;
+			return EXIT_FAILURE;
 		}
 	}
 
