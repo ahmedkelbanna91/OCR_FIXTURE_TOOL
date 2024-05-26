@@ -31,6 +31,7 @@ typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
 typedef CGAL::Surface_mesh<Kernel::Point_3> Mesh;
 typedef Kernel::Point_3 Point;
 typedef Kernel::Vector_3 Vector;
+typedef Mesh::Vertex_index Vertex_index;
 
 bool is_valid_mesh(Mesh mesh) {
 	std::stringstream buffer;
@@ -93,6 +94,48 @@ void get_centroid(Mesh mesh, Point& centroid) {
 		<< centroid.z() << ")" << std::endl;
 }
 
+void cut_mesh(Mesh& mesh, double model_height, double max_height) {
+	double size = 100.0, height = model_height - max_height;  // Adjust based on the expected size of the tm bounding box
+	if (height > 0) {
+		Mesh clipper, Result_Mesh;
+		Vertex_index v0 = clipper.add_vertex(Point(-size, -size, height));
+		Vertex_index v1 = clipper.add_vertex(Point(size, -size, height));
+		Vertex_index v2 = clipper.add_vertex(Point(size, size, height));
+		Vertex_index v3 = clipper.add_vertex(Point(-size, size, height));
+		Vertex_index v4 = clipper.add_vertex(Point(-size, -size, -height * 2));
+		Vertex_index v5 = clipper.add_vertex(Point(size, -size, -height * 2));
+		Vertex_index v6 = clipper.add_vertex(Point(size, size, -height * 2));
+		Vertex_index v7 = clipper.add_vertex(Point(-size, size, -height * 2));
+		// Bottom face
+		clipper.add_face(v0, v1, v2);
+		clipper.add_face(v2, v3, v0);
+		// Top face
+		clipper.add_face(v4, v6, v5);
+		clipper.add_face(v6, v4, v7);
+		// Four side faces
+		clipper.add_face(v0, v4, v1);
+		clipper.add_face(v1, v4, v5);
+		clipper.add_face(v1, v5, v2);
+		clipper.add_face(v2, v5, v6);
+		clipper.add_face(v2, v6, v3);
+		clipper.add_face(v3, v6, v7);
+		clipper.add_face(v3, v7, v0);
+		clipper.add_face(v0, v7, v4);
+
+		//Kernel::Plane_3 plane(0, 0, 1, -height); 
+		//PMP::clip(mesh, plane, PMP::parameters::clip_volume(true));
+		if (DEBUG) std::cout << Yellow << "      Cutting mesh at Z:  " << ColorEnd << height << std::endl;
+		if (!PMP::corefine_and_compute_difference(mesh, clipper, Result_Mesh)) {
+			std::cerr << Red << "      Cutting mesh failed." << ColorEnd << std::endl;
+		}
+		mesh.clear();
+		mesh = Result_Mesh;
+	}
+	else {
+		if (DEBUG) std::cout << Yellow << "      No Cutting mesh needed:  " << ColorEnd << height << std::endl;
+	}
+}
+
 void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, double XYtopscale) {
 	for (auto v : mesh.vertices()) {
 		Point& p = mesh.point(v);
@@ -113,6 +156,19 @@ void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, dou
 }
 
 void translate_mesh(Mesh& mesh, const Vector& translation_vector) {
+	double min_z = std::numeric_limits<double>::infinity();
+	for (auto v : mesh.vertices()) {
+		double z = mesh.point(v).z();
+		if (z < min_z) {
+			min_z = z;
+		}
+	}
+	if (DEBUG) std::cout << Yellow << "      Settling mesh at Z:  " << ColorEnd << -min_z << std::endl;
+	for (auto v : mesh.vertices()) {
+		Point p = mesh.point(v);
+		mesh.point(v) = Point(p.x(), p.y(), p.z() - min_z);
+	}
+
 	if (DEBUG) std::cout << Yellow << "      Applying translation:  " << ColorEnd << translation_vector << std::endl;
 	for (auto v : mesh.vertices()) {
 		mesh.point(v) = mesh.point(v) + translation_vector;
@@ -165,26 +221,27 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (args.find("-O") == args.end() || args.find("-N") == args.end() || args.find("-D") == args.end()) {
-		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl] [-DB Debug]   (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
+		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl] [-MH MaxHeight] [-DB Debug]   (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
 		return EXIT_FAILURE;
 	}
 
-	std::string Output_Path = args["-O"], ID = args["-N"], Model_Path = args["-I"];
+	std::string Output_Path_Str = args["-O"], ID_Str = args["-N"], Model_Path_Str = args["-I"], cutting_height_Str = args["-MH"];
 	zDepth = 4.0f + std::atof(args["-D"].c_str());
 
-	std::transform(ID.begin(), ID.end(), ID.begin(), [](unsigned char c) { return std::toupper(c); });
+	std::transform(ID_Str.begin(), ID_Str.end(), ID_Str.begin(), [](unsigned char c) { return std::toupper(c); });
 
 	Mesh Letter_Mesh, Tag_Mesh, Fixture_Mesh, Model_Mesh, Result_Mesh;
 
-	for (char c : ID) {
+	for (char c : ID_Str) {
 		double FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
 		std::string Letter_File = "models/font/" + std::string(1, c) + ".stl";
 
 		if (!read_STL(Letter_File, Letter_Mesh)) return EXIT_FAILURE;
 
 		get_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
-		Point centroid;
+		Point centroid, center;
 		get_centroid(Letter_Mesh, centroid);
+		get_center(Letter_Mesh, center);
 
 		if (std::isdigit(c)) {
 			lastWasDigit = true;
@@ -210,14 +267,16 @@ int main(int argc, char* argv[]) {
 	}
 
 
-	if (!Model_Path.empty()) {
-		if (!read_STL(Model_Path, Model_Mesh)) return EXIT_FAILURE;
+	if (!Model_Path_Str.empty()) {
+		if (!read_STL(Model_Path_Str, Model_Mesh)) return EXIT_FAILURE;
 		if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " << ColorEnd << PMP::remove_isolated_vertices(Model_Mesh) << std::endl;
 
 		double Width, Length, Height;
-		get_dimensions(Model_Mesh, Width, Length, Height);
-
 		Point centroid, center;
+		get_dimensions(Model_Mesh, Width, Length, Height);
+		if (!cutting_height_Str.empty()) {
+			cut_mesh(Model_Mesh, Height, std::atof(cutting_height_Str.c_str()));
+		}
 		//PMP::orient(Model_Mesh);
 		get_centroid(Model_Mesh, centroid);
 		get_center(Model_Mesh, center);
@@ -226,6 +285,7 @@ int main(int argc, char* argv[]) {
 		Mesh Sub_Mesh = Result_Mesh;
 		Result_Mesh.clear();
 
+		//Result_Mesh = Model_Mesh;
 		if (!PMP::corefine_and_compute_union(Model_Mesh, Sub_Mesh, Result_Mesh)) {
 		    std::cerr << Red << "      Model Addition failed." << ColorEnd << std::endl;
 			Result_Mesh.clear();
@@ -245,7 +305,7 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	if (!write_STL(Output_Path, Result_Mesh)) return EXIT_FAILURE;
+	if (!write_STL(Output_Path_Str, Result_Mesh)) return EXIT_FAILURE;
 
 	std::cout << Green << "      Operation completed successfully." << ColorEnd << std::endl;
 	return EXIT_SUCCESS;
