@@ -1,0 +1,11 @@
+
+#ifndef INTERACTOR_STYLE_H
+#define INTERACTOR_STYLE_H
+
+
+
+
+
+
+
+#endif // INTERACTOR_STYLE_H
