@@ -23,5 +23,11 @@
     <ClInclude Include="InteractorStyle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="OCR_font_STL.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VTK_Visualization.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

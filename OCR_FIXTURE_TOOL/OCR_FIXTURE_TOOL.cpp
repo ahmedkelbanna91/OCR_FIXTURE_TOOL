@@ -10,6 +10,8 @@
 #include <cmath>
 #include <map>
 #include "include\rang.hpp"
+#include "OCR_font_STL.h"
+//#include "VTK_Visualization.h
 
 #include <CGAL/Polygon_mesh_processing/transform.h>
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
@@ -52,6 +54,14 @@
 #include <vtkProperty2D.h>
 #include <vtkSliderWidget.h>
 #include <vtkCommand.h>
+
+//#include <QMainWindow>
+//#include <QListWidget>
+//#include <QVBoxLayout>
+//#include <QHBoxLayout>
+//#include <QPushButton>
+//#include <QFileDialog>
+//#include <QVTKWidget.h>
 
 
 #define M_PI 3.14159265358979323846
@@ -400,26 +410,13 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	MainRenderer->SetOcclusionRatio(0.1);
 
 	// Setup for secondary renderer
-	vtkNew<vtkRenderer> insetRenderer;
-	insetRenderer->SetBackground(0.2, 0.2, 0.3); 
-	insetRenderer->SetUseDepthPeeling(1);
-	insetRenderer->SetMaximumNumberOfPeels(100);
-	insetRenderer->SetOcclusionRatio(0.1);
-	insetRenderer->SetViewport(0.75, 0.0, 1.0, 0.25); // X1 Y1   X2 Y2
-	insetRenderer->EraseOff();
-
-	// Camera setups
-	//vtkNew<vtkCamera> camera;
-	//camera->SetPosition(0, 0, 150);
-	//camera->SetFocalPoint(0, 0, 0);
-	/*camera->SetViewUp(0, 1, 0);
-	MainRenderer->SetActiveCamera(camera);*/
-
-	vtkNew<vtkCamera> sideCamera;
-	sideCamera->SetPosition(95, 95, 40);
-	sideCamera->SetFocalPoint(0, 0, 20);
-	sideCamera->SetViewUp(0, 0, 1);
-	insetRenderer->SetActiveCamera(sideCamera);
+	vtkNew<vtkRenderer> InsetRenderer;
+	InsetRenderer->SetBackground(0.2, 0.2, 0.3); 
+	InsetRenderer->SetUseDepthPeeling(1);
+	InsetRenderer->SetMaximumNumberOfPeels(100);
+	InsetRenderer->SetOcclusionRatio(0.1);
+	InsetRenderer->SetViewport(0.75, 0.0, 1.0, 0.25); // X1 Y1   X2 Y2
+	InsetRenderer->EraseOff();
 
 	// Window and interactor setup
 	vtkNew<vtkRenderWindow> renderWindow;
@@ -428,7 +425,7 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	renderWindow->SetAlphaBitPlanes(1);
 	renderWindow->SetMultiSamples(0); 
 	renderWindow->AddRenderer(MainRenderer);
-	renderWindow->AddRenderer(insetRenderer);
+	renderWindow->AddRenderer(InsetRenderer);
 
 	vtkNew<vtkRenderWindowInteractor> renderWindowInteractor;
 	renderWindowInteractor->SetRenderWindow(renderWindow);
@@ -447,8 +444,7 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 
 	MainRenderer->AddActor(staticActor);
 	MainRenderer->AddActor(movableActor);
-	insetRenderer->AddActor(staticActor);
-	insetRenderer->AddActor(movableActor);
+	InsetRenderer->AddActor(movableActor);
 
 
 	// Orientation Marker Widget - SetupCubeWidget(renderWindowInteractor, MainRenderer);
@@ -480,10 +476,10 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 
 	// Center XYZ axes - SetupCenterXYZAxes(renderWindowInteractor, MainRenderer);
 	vtkNew<vtkAxesActor> XYZaxes;
-	XYZaxes->SetTotalLength(10, 10, 10);
-	XYZaxes->GetXAxisCaptionActor2D()->SetVisibility(0);
-	XYZaxes->GetYAxisCaptionActor2D()->SetVisibility(0);
-	XYZaxes->GetZAxisCaptionActor2D()->SetVisibility(0);
+	XYZaxes->SetTotalLength(6, 6, 6);
+	XYZaxes->SetXAxisLabelText("");
+	XYZaxes->SetYAxisLabelText("");
+	XYZaxes->SetZAxisLabelText("");
 	MainRenderer->AddActor(XYZaxes);
 
 	// Center sphere - SetupSphereActor(MainRenderer);
@@ -499,7 +495,7 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	MainRenderer->AddActor(sphereActor);
 
 
-	// XY Cutting disk - SetupCutdiskActor(insetRenderer);
+	// XY Cutting disk - SetupCutdiskActor(InsetRenderer);
 	vtkNew<vtkDiskSource> diskSource;
 	diskSource->SetInnerRadius(0.0); 
 	diskSource->SetOuterRadius(40.0);
@@ -513,7 +509,7 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	diskActor->SetMapper(mapper);
 	diskActor->GetProperty()->SetColor(0.2, 0.5, 0.4);
 	diskActor->GetProperty()->SetOpacity(0.5);
-	insetRenderer->AddActor(diskActor);
+	InsetRenderer->AddActor(diskActor);
 
 	// Cutting Slider - SetupCutSliderWidget(renderWindowInteractor, movableActor, CutHeight, mincut, maxcut, mincut);
 	vtkNew<vtkSliderRepresentation2D> CutSlider;
@@ -529,9 +525,9 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	CutSlider->SetEndCapWidth(0.02);
 	CutSlider->SetTitleText("Cut");
 	CutSlider->GetPoint1Coordinate()->SetCoordinateSystemToNormalizedDisplay();
-	CutSlider->GetPoint1Coordinate()->SetValue(0.07, 0.20);  // Bottom-left 
+	CutSlider->GetPoint1Coordinate()->SetValue(0.9, 0.20);  // Bottom-left 
 	CutSlider->GetPoint2Coordinate()->SetCoordinateSystemToNormalizedDisplay();
-	CutSlider->GetPoint2Coordinate()->SetValue(0.07, 0.80);  // Top-left
+	CutSlider->GetPoint2Coordinate()->SetValue(0.9, 0.80);  // Top-left
 	vtkNew<vtkSliderWidget> CutSliderWidget;
 	CutSliderWidget->SetInteractor(renderWindowInteractor);
 	CutSliderWidget->SetRepresentation(CutSlider);
@@ -578,11 +574,23 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 	renderWindowInteractor->SetInteractorStyle(style);
 	
 
+	// Camera setups
 	MainRenderer->ResetCamera();
+	MainRenderer->GetActiveCamera()->SetPosition(0, 0, 160);
+	MainRenderer->GetActiveCamera()->SetFocalPoint(0, 0, 0);
+	MainRenderer->GetActiveCamera()->SetViewUp(0, 1, 0);
+	MainRenderer->ResetCameraClippingRange();
+	
+	InsetRenderer->ResetCamera();
+	InsetRenderer->GetActiveCamera()->SetPosition(95, 95, 40);
+	InsetRenderer->GetActiveCamera()->SetFocalPoint(0, 0, 20);
+	InsetRenderer->GetActiveCamera()->SetViewUp(0, 0, 1);
+	InsetRenderer->ResetCameraClippingRange();
+
 	renderWindow->Render();
-	renderWindowInteractor->Initialize();
 
 	if (DEBUG) std::cout << Yellow << "      Viewer Started." << ColorEnd << std::endl;
+	renderWindowInteractor->Initialize();
 	renderWindowInteractor->Start();
 	if (DEBUG) std::cout << Yellow << "      Viewer Exited." << ColorEnd << std::endl;
 
@@ -817,6 +825,22 @@ void rotate_mesh(Mesh& mesh, double x_deg, double y_deg, double z_deg) {
 	PMP::transform(combined, mesh);
 }
 
+bool read_STL_data(const std::string& identifier, Mesh& mesh) {
+	mesh.clear();
+	for (const auto& data : FONT_STL) {
+		if (data.key == identifier) { // Convert char to string for comparison
+			if (DEBUG) std::cout << Yellow << "      Reading STL Data:  " << ColorEnd << identifier << std::endl;
+			std::istringstream iss(std::string(reinterpret_cast<const char*>(data.data), data.size), std::ios::binary);
+			if (CGAL::IO::read_STL(iss, mesh)) { // Ensure this matches the actual function available in CGAL
+				return true;
+			}
+			break;
+		}
+	}
+	std::cerr << Red << "Error: No STL data available for:  " << ColorEnd << identifier << std::endl;
+	return false;
+}
+
 bool read_STL(const std::string& filename, Mesh& mesh) {
 	fs::path filepath(filename);
 	mesh.clear();
@@ -881,9 +905,10 @@ int main(int argc, char* argv[]) {
 
 	for (char c : ID_Str) {
 		double FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
-		std::string Letter_File = "models/font/" + std::string(1, c) + ".stl";
 
-		if (!read_STL(Letter_File, Letter_Mesh)) return EXIT_FAILURE;
+		if (!read_STL_data(std::string(1, c), Letter_Mesh)) return EXIT_FAILURE;
+		//std::string Letter_File = "models/font/" + std::string(1, c) + ".stl";
+		//if (!read_STL(Letter_File, Letter_Mesh)) return EXIT_FAILURE;
 
 		get_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
 		Point centroid, center;
@@ -906,7 +931,8 @@ int main(int argc, char* argv[]) {
 
 	translate_mesh(Tag_Mesh, Kernel::Vector_3(Xtranslate, Ytranslate, zDepth));
 
-	if (!read_STL("models/fixture.stl", Fixture_Mesh)) return EXIT_FAILURE;
+	if (!read_STL_data("fixture", Fixture_Mesh)) return EXIT_FAILURE;
+	//if (!read_STL("models/fixture.stl", Fixture_Mesh)) return EXIT_FAILURE;
 
 	if (!PMP::corefine_and_compute_difference(Fixture_Mesh, Tag_Mesh, Result_Mesh)) {
 		std::cerr << Red << "      Subtraction operation failed." << ColorEnd << std::endl;
