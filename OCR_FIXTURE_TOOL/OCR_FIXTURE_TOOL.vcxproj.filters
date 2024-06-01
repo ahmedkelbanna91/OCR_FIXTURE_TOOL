@@ -29,5 +29,8 @@
     <ClInclude Include="VTK_Visualization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="rang.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

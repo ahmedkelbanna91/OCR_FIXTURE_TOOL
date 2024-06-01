@@ -143,6 +143,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtWidgets;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtGui;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -160,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="InteractorStyle.h" />
     <ClInclude Include="OCR_font_STL.h" />
+    <ClInclude Include="rang.hpp" />
     <ClInclude Include="VTK_Visualization.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -9,7 +9,7 @@
 #include <string>
 #include <cmath>
 #include <map>
-#include "include\rang.hpp"
+#include "rang.hpp"
 #include "OCR_font_STL.h"
 //#include "VTK_Visualization.h
 
@@ -115,7 +115,7 @@ public:
 		vtkSliderWidget* sliderWidget = reinterpret_cast<vtkSliderWidget*>(caller);
 		vtkSliderRepresentation* sliderRep = dynamic_cast<vtkSliderRepresentation*>(sliderWidget->GetRepresentation());
 		if (!sliderRep) return;
-		double value = scaleValue(sliderRep->GetValue());
+		double value = scaleValue(sliderRep->GetValue(), 180.0);
 
 		if (RotPtr) *RotPtr = value;  // Update the external CutHeight variable
 		else std::cerr << "Warning: RotPtr is not initialized." << std::endl;
@@ -139,10 +139,9 @@ public:
 	void SetRotPtr(double* ptr) {
 		RotPtr = ptr;
 	}
-	double scaleValue(double input) {
-		double normalizedInput = input / 180.0;  // Normalize to -1 to 1
-		return 180.0 * normalizedInput * normalizedInput * (input < 0 ? -1 : 1);  // Scale back to -180 to 180
-		//return 180.0 * std::pow(normalizedInput, 4) * (input < 0 ? -1 : 1);  // Scale back to -180 to 180 with sign
+	double scaleValue(double input, double factor) {
+		double normalizedInput = input / factor;  // Normalize to -1 to 1
+		return factor * normalizedInput * normalizedInput * (input < 0 ? -1 : 1);  // Scale back to -180 to 180
 	}
 
 private:
@@ -184,7 +183,6 @@ public:
 	void SetModelActor(vtkActor* actor) {
 		this->CuttingDisk = actor;
 	}
-
 	void SetCutHeightPtr(double* ptr) {
 		CutHeightPtr = ptr;
 	}
@@ -252,7 +250,8 @@ public:
 			X_offset = CurrentPos[0];
 			Y_offset = CurrentPos[1];
 
-			if (DEBUG) std::cout << Yellow << "      Final position offset: " << ColorEnd << "(" << CurrentPos[0] << ", " << CurrentPos[1] << ")" << std::endl;
+			if (DEBUG) std::cout << Yellow << "      Final position offset: " 
+				<< ColorEnd << "(" << CurrentPos[0] << ", " << CurrentPos[1] << ")" << std::endl;
 			if (DEBUG) std::cout << Yellow << "      Mesh deselected!" << ColorEnd << std::endl;
 			this->TextActor->SetInput("Mesh deselected!");
 			this->SelectedMesh->GetProperty()->SetColor(0.85, 0.85, 0.85);  // Reset to original color
@@ -292,7 +291,8 @@ public:
 			double POSX = pos[0] + dx, POSY = pos[1] + dy;
 			this->SelectedMesh->SetPosition(POSX, POSY, pos[2]);
 
-			if (DEBUG) std::cout << Yellow << "      Moved to " << ColorEnd << "(X " << POSX << ", Y " << POSY << ")" << std::endl;
+			if (DEBUG) std::cout << Yellow << "      Moved to " << ColorEnd 
+				<< "(X " << POSX << ", Y " << POSY << ")" << std::endl;
 			this->TextActor->SetInput(("(X " + std::to_string(POSX) + ", Y " + std::to_string(POSY) + ")").c_str());
 
 			this->LastPosition[0] = newPos[0];
@@ -596,6 +596,9 @@ void visualize_mesh(Mesh staticMesh, Mesh movableMesh, double& Xoffset, double& 
 
 	Xoffset = style->X_offset;
 	Yoffset = style->Y_offset;
+
+	if (DEBUG) std::cout << Yellow << "      Offsets: " << ColorEnd << "X" << Xoffset << ", Y" << Yoffset << std::endl;
+	if (DEBUG) std::cout << "               Z" << CutHeight << ", Rot Z" << RotZ << std::endl;
 }
 
 bool is_valid_mesh(Mesh mesh) {
@@ -650,7 +653,8 @@ void clean_difference(Mesh& mesh) {
 		++component_sizes[component_map[fd]];
 	}
 
-	std::size_t largest_component_id = std::distance(component_sizes.begin(), std::max_element(component_sizes.begin(), component_sizes.end()));
+	std::size_t largest_component_id = std::distance(component_sizes.begin(), 
+		std::max_element(component_sizes.begin(), component_sizes.end()));
 
 	std::vector<Face_index> faces_to_remove;
 	for (face_descriptor fd : faces(mesh)) {
@@ -668,9 +672,12 @@ void clean_difference(Mesh& mesh) {
 }
 
 bool repair_and_validate_mesh(Mesh & mesh) {
-	if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " << ColorEnd << PMP::remove_isolated_vertices(mesh) << std::endl;
-	if (DEBUG) std::cout << Yellow << "      Number of new vertices: " << ColorEnd << PMP::duplicate_non_manifold_vertices(mesh) << std::endl;
-	if (DEBUG) std::cout << Yellow << "      Number of stitches: " << ColorEnd << PMP::stitch_borders(mesh) << std::endl;
+	if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " 
+		<< ColorEnd << PMP::remove_isolated_vertices(mesh) << std::endl;
+	if (DEBUG) std::cout << Yellow << "      Number of new vertices: " 
+		<< ColorEnd << PMP::duplicate_non_manifold_vertices(mesh) << std::endl;
+	if (DEBUG) std::cout << Yellow << "      Number of stitches: " 
+		<< ColorEnd << PMP::stitch_borders(mesh) << std::endl;
 	mesh.collect_garbage();
 	return is_valid_mesh(mesh);
 }
@@ -717,6 +724,20 @@ void get_centroid(Mesh mesh, Point& centroid) {
 		<< centroid.z() << ")" << std::endl;
 }
 
+void settle_mesh_z0(Mesh& mesh) {
+	double min_z = std::numeric_limits<double>::infinity();
+	for (auto v : mesh.vertices()) {
+		double z = mesh.point(v).z();
+		if (z < min_z) min_z = z;
+	}
+	if (DEBUG) std::cout << Yellow << "      Settling mesh at Z:  " << ColorEnd << -min_z << std::endl;
+
+	Kernel::Vector_3 translation_vector(0, 0, -min_z);
+	for (auto v : mesh.vertices()) {
+		Point p = mesh.point(v) + translation_vector;
+		mesh.point(v) = p;
+	}
+}
 
 void cut_mesh(Mesh& mesh, double model_height, double max_height) {
 	double size = 100.0, height = model_height - max_height , bottom_z = -10;
@@ -750,6 +771,7 @@ void cut_mesh(Mesh& mesh, double model_height, double max_height) {
 		if (!PMP::corefine_and_compute_difference(mesh, clipper, Result_Mesh)) {
 			std::cerr << Red << "      Cutting mesh failed." << ColorEnd << std::endl;
 		}
+		settle_mesh_z0(Result_Mesh);
 		mesh.clear();
 		mesh = Result_Mesh;
 	}
@@ -758,23 +780,9 @@ void cut_mesh(Mesh& mesh, double model_height, double max_height) {
 	}
 }
 
-void settle_mesh_z0(Mesh& mesh) {
-	double min_z = std::numeric_limits<double>::infinity();
-	for (auto v : mesh.vertices()) {
-		double z = mesh.point(v).z();
-		if (z < min_z) {
-			min_z = z;
-		}
-	}
-	if (DEBUG) std::cout << Yellow << "      Settling mesh at Z:  " << ColorEnd << -min_z << std::endl;
-	for (auto v : mesh.vertices()) {
-		Point p = mesh.point(v);
-		mesh.point(v) = Point(p.x(), p.y(), p.z() - min_z);
-	}
-}
-
 void extrude_bottom_faces(Mesh& mesh, double target_z) {
 	double z_threshold = 0.1;
+	if (DEBUG) std::cout << Yellow << "      Extruding mesh :  " << ColorEnd << target_z << std::endl;
 	for (Vertex_index v : mesh.vertices()) {
 		Point& p = mesh.point(v);
 		if (p.z() >= z_threshold) {
@@ -783,21 +791,19 @@ void extrude_bottom_faces(Mesh& mesh, double target_z) {
 	}
 }
 
-void scaleMesh(Mesh& mesh, double XYscale, double Zscale, double zThreshold, double XYtopscale) {
+void scaleMesh(Mesh& mesh, double XYscale, double XYtopscale, double Zscale, double zThreshold) {
 	for (auto v : mesh.vertices()) {
-		Point& p = mesh.point(v);
+		Point& point = mesh.point(v);
 		double new_x, new_y, new_z;
 
-		if (p.z() > zThreshold) {
-			new_x = p.x() * XYtopscale;
-			new_y = p.y() * XYtopscale;
+		if (point.z() > zThreshold) {
+			new_x = point.x() * XYtopscale;
+			new_y = point.y() * XYtopscale;
+		} else {
+			new_x = point.x() * XYscale;
+			new_y = point.y() * XYscale;
 		}
-		else {
-			new_x = p.x() * XYscale;
-			new_y = p.y() * XYscale;
-		}
-		new_z = p.z() * Zscale;
-
+		new_z = point.z() * Zscale;
 		mesh.point(v) = Point(new_x, new_y, new_z);
 	}
 }
@@ -825,25 +831,9 @@ void rotate_mesh(Mesh& mesh, double x_deg, double y_deg, double z_deg) {
 	PMP::transform(combined, mesh);
 }
 
-bool read_STL_data(const std::string& identifier, Mesh& mesh) {
-	mesh.clear();
-	for (const auto& data : FONT_STL) {
-		if (data.key == identifier) { // Convert char to string for comparison
-			if (DEBUG) std::cout << Yellow << "      Reading STL Data:  " << ColorEnd << identifier << std::endl;
-			std::istringstream iss(std::string(reinterpret_cast<const char*>(data.data), data.size), std::ios::binary);
-			if (CGAL::IO::read_STL(iss, mesh)) { // Ensure this matches the actual function available in CGAL
-				return true;
-			}
-			break;
-		}
-	}
-	std::cerr << Red << "Error: No STL data available for:  " << ColorEnd << identifier << std::endl;
-	return false;
-}
-
 bool read_STL(const std::string& filename, Mesh& mesh) {
-	fs::path filepath(filename);
 	mesh.clear();
+	fs::path filepath(filename);
 	if (DEBUG) std::cout << Yellow << "      Reading STL file:  " << ColorEnd << filepath.filename() << std::endl;
 	if (!PMP::IO::read_polygon_mesh(filename, mesh)) {
 		std::cerr << Red << "Error: Cannot read the STL file:  " << ColorEnd << filepath.filename() << std::endl;
@@ -862,15 +852,63 @@ bool write_STL(const std::string& filename, const Mesh& mesh) {
 	return true;
 }
 
-int main(int argc, char* argv[]) {
-	bool lastWasDigit = false;
-	double offsetX = 0.0f, offsetY = 0.0f, offsetZ = 0.0f;
-	double XYscale = 0.18f, XYtopscale = 0.18f, Zscale = 0.30f;
-	double zThreshold = 0.1f;
-	double Xspacing = 0.8f, Yspacing = 2.9f;
-	double Xtranslate = -6.5f, Ytranslate = -7.5f, zDepth= 4.0f; //2.6f
 
-	
+bool read_STL_data(const std::string& identifier, Mesh& mesh) {
+	mesh.clear();
+	for (const auto& data : FONT_STL) {
+		if (data.key == identifier) { // Convert char to string for comparison
+			if (DEBUG) std::cout << Yellow << "      Reading STL Data:  " << ColorEnd << identifier << std::endl;
+			std::istringstream iss(std::string(reinterpret_cast<const char*>(data.data), data.size), std::ios::binary);
+			if (CGAL::IO::read_STL(iss, mesh)) { // Ensure this matches the actual function available in CGAL
+				return true;
+			}
+			break;
+		}
+	}
+	std::cerr << Red << "      Error: No STL data available for:  " << ColorEnd << identifier << std::endl;
+	return false;
+}
+
+void create_fixture(std::string ID_Str, Mesh Fixture_Mesh, Mesh& Result_Mesh) {
+	bool lastWasDigit = false;
+	double offsetX = -6.5, offsetY = -7.5, offsetZ = 4.0;
+	double XYscale = 0.18, XYtopscale = 0.18, Zscale = 0.30;
+	double zThreshold = 0.1;
+	double Xspacing = 0.8, Yspacing = 2.9;
+	double zDepth = -1.0;
+	Mesh Tag_Mesh;
+
+	std::transform(ID_Str.begin(), ID_Str.end(), ID_Str.begin(), [](unsigned char c) { return std::toupper(c); });
+
+	for (char c : ID_Str) {
+		Mesh Letter_Mesh;
+		double FontWidth = 0.0, FontLength = 0.0, FontHeight = 0.0;
+
+		if (!read_STL_data(std::string(1, c), Letter_Mesh)) continue;
+
+		get_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
+
+		if (std::isdigit(c)) {
+			lastWasDigit = true;
+		} else if (lastWasDigit) {
+			offsetY -= (FontLength * XYscale) + Yspacing;
+			offsetX = -6.35; // 0.15
+			lastWasDigit = false;
+		}
+
+		scaleMesh(Letter_Mesh, XYscale, XYtopscale, Zscale, zThreshold);
+		translate_mesh(Letter_Mesh, Kernel::Vector_3(offsetX, offsetY, offsetZ + zDepth));
+		offsetX += (FontWidth * XYscale) + Xspacing;
+		CGAL::copy_face_graph(Letter_Mesh, Tag_Mesh);
+	}
+
+	Result_Mesh.clear();
+	if (!PMP::corefine_and_compute_difference(Fixture_Mesh, Tag_Mesh, Result_Mesh)) {
+		std::cerr << Red << "      Subtraction operation failed." << ColorEnd << std::endl;
+	}
+}
+
+int main(int argc, char* argv[]) {
 	std::cout << Yellow << "\n============================'Created by Banna'===============================" << std::endl;
 	std::cout << "=============================='OCR F TOOL V3'================================\n\n" << ColorEnd << std::endl;
 
@@ -891,75 +929,37 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	if (args.find("-O") == args.end() || args.find("-N") == args.end() || args.find("-D") == args.end()) {
-		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id -D Depth [-I model.stl] [-MH MaxHeight] [-DB Debug]   (V3.0 CreatedByBanna)" << ColorEnd << std::endl;
+	if (args.find("-O") == args.end() || args.find("-N") == args.end()) {
+		std::cerr << Yellow << "Usage: OCR_FIXTURE_TOOL.exe -O out.stl -N id [-I model.stl]" << ColorEnd << std::endl;
+		
+		std::cin.get();  // Waits for the user to press Enter
 		return EXIT_FAILURE;
 	}
 
-	std::string Output_Path_Str = args["-O"], ID_Str = args["-N"], Model_Path_Str = args["-I"], cutting_height_Str = args["-MH"];
-	zDepth = 4.0f + std::atof(args["-D"].c_str());
+	std::string Output_Path_Str = args["-O"]
+		, ID_Str = args["-N"]
+		, Model_Path_Str = args["-I"];
+	Mesh Fixture_Mesh, Model_Mesh, Result_Mesh;
 
-	std::transform(ID_Str.begin(), ID_Str.end(), ID_Str.begin(), [](unsigned char c) { return std::toupper(c); });
-
-	Mesh Letter_Mesh, Tag_Mesh, Fixture_Mesh, Model_Mesh, Result_Mesh;
-
-	for (char c : ID_Str) {
-		double FontWidth = 0.0f, FontLength = 0.0f, FontHeight = 0.0f;
-
-		if (!read_STL_data(std::string(1, c), Letter_Mesh)) return EXIT_FAILURE;
-		//std::string Letter_File = "models/font/" + std::string(1, c) + ".stl";
-		//if (!read_STL(Letter_File, Letter_Mesh)) return EXIT_FAILURE;
-
-		get_dimensions(Letter_Mesh, FontWidth, FontLength, FontHeight);
-		Point centroid, center;
-		get_centroid(Letter_Mesh, centroid);
-		get_center(Letter_Mesh, center);
-
-		if (std::isdigit(c)) {
-			lastWasDigit = true;
-		}
-		else if (lastWasDigit) {
-			offsetY -= (FontLength * XYscale) + Yspacing;
-			offsetX = 0.15f;
-			lastWasDigit = false;
-		}
-		scaleMesh(Letter_Mesh, XYscale, Zscale, zThreshold, XYtopscale);
-		translate_mesh(Letter_Mesh, Kernel::Vector_3(offsetX, offsetY, offsetZ));
-		offsetX += (FontWidth * XYscale) + Xspacing;
-		CGAL::copy_face_graph(Letter_Mesh, Tag_Mesh);
-	}
-
-	translate_mesh(Tag_Mesh, Kernel::Vector_3(Xtranslate, Ytranslate, zDepth));
-
+	
 	if (!read_STL_data("fixture", Fixture_Mesh)) return EXIT_FAILURE;
-	//if (!read_STL("models/fixture.stl", Fixture_Mesh)) return EXIT_FAILURE;
 
-	if (!PMP::corefine_and_compute_difference(Fixture_Mesh, Tag_Mesh, Result_Mesh)) {
-		std::cerr << Red << "      Subtraction operation failed." << ColorEnd << std::endl;
-		return EXIT_FAILURE;
-	}
+	create_fixture(ID_Str, Fixture_Mesh, Result_Mesh);
 
 
 	if (!Model_Path_Str.empty()) {
 		if (!read_STL(Model_Path_Str, Model_Mesh)) return EXIT_FAILURE;
-		if (DEBUG) std::cout << Yellow << "      Number of removed vertices: " << ColorEnd << PMP::remove_isolated_vertices(Model_Mesh) << std::endl;
 
 		double Width, Length, Height, Model_Xoffset, Model_Yoffset, cut_height, Model_Zrot;
-		Mesh Sub_Mesh = Result_Mesh;
+		Mesh Fixture_Tag_Mesh = Result_Mesh;
 		Point centroid, center;
 		Result_Mesh.clear();
 		
-		settle_mesh_z0(Model_Mesh);
 		get_dimensions(Model_Mesh, Width, Length, Height);
-		//PMP::orient(Model_Mesh);
-		/*get_center(Model_Mesh, center);
-		translate_mesh(Model_Mesh, Kernel::Vector_3(-center.x(), -center.y() + 6, 0));*/
-		get_centroid(Model_Mesh, centroid);
-		translate_mesh(Model_Mesh, Kernel::Vector_3(-centroid.x(), -centroid.y() + 6, 0));
+		get_center(Model_Mesh, center);
+		translate_mesh(Model_Mesh, Kernel::Vector_3(-center.x(), -center.y() + 6, 0));
 
-		visualize_mesh(Sub_Mesh, Model_Mesh , Model_Xoffset, Model_Yoffset, cut_height, Model_Zrot);
-		if (DEBUG) std::cout << Yellow << "      Offsets: " << ColorEnd << "X" << Model_Xoffset << ", Y" << Model_Yoffset << std::endl;
-		if (DEBUG) std::cout << "               Z" << cut_height << ", Rot Z" << Model_Zrot << std::endl;
+		visualize_mesh(Fixture_Tag_Mesh, Model_Mesh , Model_Xoffset, Model_Yoffset, cut_height, Model_Zrot);
 
 		if (Model_Xoffset != NULL || Model_Yoffset != NULL)
 			translate_mesh(Model_Mesh, Kernel::Vector_3(Model_Xoffset, Model_Yoffset, 0));
@@ -967,31 +967,28 @@ int main(int argc, char* argv[]) {
 			rotate_mesh(Model_Mesh, 0, 0, Model_Zrot);
 		if (cut_height >= 0.1) {
 			cut_mesh(Model_Mesh, cut_height, 0);
-			settle_mesh_z0(Model_Mesh);
 		}
 		
-		if (!cutting_height_Str.empty()) {
-			cut_mesh(Model_Mesh, Height, std::atof(cutting_height_Str.c_str()));
-			settle_mesh_z0(Model_Mesh);
-		}
-
-		if (!PMP::corefine_and_compute_union(Model_Mesh, Sub_Mesh, Result_Mesh)) {
+		if (!PMP::corefine_and_compute_union(Model_Mesh, Fixture_Tag_Mesh, Result_Mesh)) {
 		    std::cerr << Red << "      Model Addition failed." << ColorEnd << std::endl;
 			Result_Mesh.clear();
-			CGAL::copy_face_graph(Sub_Mesh, Result_Mesh);
+			CGAL::copy_face_graph(Fixture_Tag_Mesh, Result_Mesh);
 			CGAL::copy_face_graph(Model_Mesh, Result_Mesh);
 		}
 	}
 
-	if (repair_and_validate_mesh(Result_Mesh)) {
-		if (DEBUG) std::cout << Green << "      Mesh repaired." << ColorEnd << std::endl;
-	}
-	else {
-		std::cerr << Red << "      Failed to repair or validate the mesh." << ColorEnd << std::endl;
-	}
+	//if (repair_and_validate_mesh(Result_Mesh)) {
+	//	if (DEBUG) std::cout << Green << "      Mesh repaired." << ColorEnd << std::endl;
+	//}
+	//else {
+	//	std::cerr << Red << "      Failed to repair or validate the mesh." << ColorEnd << std::endl;
+	//}
 	
 	if (!write_STL(Output_Path_Str, Result_Mesh)) return EXIT_FAILURE;
 
 	std::cout << Green << "      Operation completed successfully." << ColorEnd << std::endl;
+
+	//std::cout << "      Press enter to continue...";
+	//std::cin.get();  // Waits for the user to press Enter
 	return EXIT_SUCCESS;
 }
