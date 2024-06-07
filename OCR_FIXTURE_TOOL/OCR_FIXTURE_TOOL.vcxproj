@@ -51,6 +51,7 @@
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -73,6 +74,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\devlib\vcpkg\installed\x64-windows-static\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\devlib\vcpkg\installed\x64-windows-static\lib;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)$(Configuration)</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\devlib\vcpkg\installed\x64-windows-static\include;$(IncludePath)</IncludePath>
@@ -142,8 +144,9 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtWidgets;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtGui;C:\devlib\vcpkg\installed\x64-windows-static\include\qt6\QtCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -151,7 +154,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\devlib\vcpkg\installed\x64-windows-static\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <ShowProgress>LinkVerbose</ShowProgress>
+      <ShowProgress>NotSet</ShowProgress>
       <AdditionalDependencies>Ws2_32.lib;Psapi.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
