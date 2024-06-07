@@ -74,11 +74,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\devlib\vcpkg\installed\x64-windows-static\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\devlib\vcpkg\installed\x64-windows-static\lib;$(LibraryPath)</LibraryPath>
-    <OutDir>$(SolutionDir)$(Configuration)</OutDir>
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\devlib\vcpkg\installed\x64-windows-static\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\devlib\vcpkg\installed\x64-windows-static\lib;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <VcpkgUseStatic>true</VcpkgUseStatic>
@@ -125,7 +126,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -144,7 +145,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\devlib\vcpkg\installed\x64-windows-static\include;C:\devlib\vcpkg\installed\x64-windows-static\include\vtk-9.3</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
